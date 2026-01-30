@@ -148,6 +148,8 @@ export class HandwritingCanvas {
             penColor: '#e6b84a',
             penWidth: 2.5,
             eraserWidth: 20,
+            palmRejection: true,
+            palmRejectionRadius: 40,
             ...options
         };
 
@@ -157,15 +159,39 @@ export class HandwritingCanvas {
         this.lastPressure = 0.5;
         this.currentTool = 'pen';
         this.theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        this.activePointerId = null;
 
-        this.strokes = [];
+        this.pages = [{ strokes: [], undoStack: [], redoStack: [] }];
+        this.currentPageIndex = 0;
         this.currentStroke = null;
-        this.undoStack = [];
-        this.redoStack = [];
+
+        this.onPageChange = null;
+        this.onStrokeEnd = null;
+        this.lastTime = 0;
 
         this.setupCanvas();
         this.setupEventListeners();
         this.applyTemplate();
+    }
+
+    get currentPage() {
+        return this.pages[this.currentPageIndex];
+    }
+
+    get strokes() {
+        return this.currentPage.strokes;
+    }
+
+    set strokes(value) {
+        this.currentPage.strokes = value;
+    }
+
+    get undoStack() {
+        return this.currentPage.undoStack;
+    }
+
+    get redoStack() {
+        return this.currentPage.redoStack;
     }
 
     setupCanvas() {
@@ -177,7 +203,11 @@ export class HandwritingCanvas {
 
         this.canvas = document.createElement('canvas');
         this.canvas.className = 'handwriting-canvas';
-        this.canvas.setAttribute('touch-action', 'none');
+
+        this.canvas.style.touchAction = 'none';
+        this.canvas.style.userSelect = 'none';
+        this.canvas.style.webkitUserSelect = 'none';
+        this.canvas.style.webkitTouchCallout = 'none';
 
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         this.bgCtx = this.bgCanvas.getContext('2d');
@@ -214,11 +244,24 @@ export class HandwritingCanvas {
     }
 
     setupEventListeners() {
-        this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
-        this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
-        this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this));
-        this.canvas.addEventListener('pointerleave', this.handlePointerUp.bind(this));
-        this.canvas.addEventListener('pointercancel', this.handlePointerUp.bind(this));
+        this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this), { passive: false });
+        this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this), { passive: false });
+        this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this), { passive: false });
+        this.canvas.addEventListener('pointerleave', this.handlePointerUp.bind(this), { passive: false });
+        this.canvas.addEventListener('pointercancel', this.handlePointerUp.bind(this), { passive: false });
+
+        this.canvas.addEventListener('touchstart', this.preventDefaultTouch.bind(this), { passive: false });
+        this.canvas.addEventListener('touchmove', this.preventDefaultTouch.bind(this), { passive: false });
+        this.canvas.addEventListener('touchend', this.preventDefaultTouch.bind(this), { passive: false });
+
+        this.canvas.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+        this.canvas.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+        this.canvas.addEventListener('gestureend', e => e.preventDefault(), { passive: false });
+
+        this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        this.canvas.addEventListener('selectstart', e => e.preventDefault());
+        this.canvas.addEventListener('dragstart', e => e.preventDefault());
 
         window.addEventListener('themechange', () => {
             this.theme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -226,14 +269,58 @@ export class HandwritingCanvas {
         });
     }
 
+    preventDefaultTouch(e) {
+        if (e.touches.length === 1) {
+            e.preventDefault();
+        }
+    }
+
+    shouldRejectInput(e) {
+        if (!this.options.palmRejection) return false;
+
+        if (e.pointerType === 'pen') {
+            return false;
+        }
+
+        if (e.pointerType === 'touch') {
+            if (e.width && e.height) {
+                const contactSize = Math.max(e.width, e.height);
+                if (contactSize > this.options.palmRejectionRadius) {
+                    return true;
+                }
+            }
+
+            if (e.pressure && e.pressure > 0.8) {
+                return true;
+            }
+
+            if (this.activePointerId !== null && e.pointerId !== this.activePointerId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     handlePointerDown(e) {
         e.preventDefault();
+        e.stopPropagation();
+
+        if (this.shouldRejectInput(e)) {
+            return;
+        }
+
+        if (this.isDrawing && this.activePointerId !== null && e.pointerId !== this.activePointerId) {
+            return;
+        }
+
         this.isDrawing = true;
+        this.activePointerId = e.pointerId;
 
         const rect = this.canvas.getBoundingClientRect();
         this.lastX = e.clientX - rect.left;
         this.lastY = e.clientY - rect.top;
-        this.lastPressure = e.pressure || 0.5;
+        this.lastPressure = e.pointerType === 'pen' ? (e.pressure || 0.5) : 0.5;
 
         if (this.currentTool === 'pen') {
             this.currentStroke = {
@@ -251,23 +338,58 @@ export class HandwritingCanvas {
             };
         }
 
-        this.canvas.setPointerCapture(e.pointerId);
+        try {
+            this.canvas.setPointerCapture(e.pointerId);
+        } catch (err) {
+        }
     }
 
     handlePointerMove(e) {
-        if (!this.isDrawing) return;
         e.preventDefault();
+        e.stopPropagation();
+
+        if (!this.isDrawing) return;
+
+        if (e.pointerId !== this.activePointerId) return;
+
+        if (this.shouldRejectInput(e)) {
+            this.handlePointerUp(e);
+            return;
+        }
 
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const pressure = e.pressure || 0.5;
+        const pressure = e.pointerType === 'pen' ? (e.pressure || 0.5) : 0.5;
 
         if (this.currentTool === 'eraser') {
             this.erase(x, y);
         } else if (this.currentStroke) {
-            this.currentStroke.points.push({ x, y, pressure });
-            this.drawStroke(this.currentStroke, true);
+            const lastPoint = this.currentStroke.points[this.currentStroke.points.length - 1];
+            const dx = x - lastPoint.x;
+            const dy = y - lastPoint.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 2) {
+                const steps = Math.max(1, Math.ceil(distance / 3));
+                let prevPoint = lastPoint;
+
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const interpX = lastPoint.x + dx * t;
+                    const interpY = lastPoint.y + dy * t;
+                    const interpPressure = lastPoint.pressure + (pressure - lastPoint.pressure) * t;
+                    const newPoint = { x: interpX, y: interpY, pressure: interpPressure };
+
+                    this.currentStroke.points.push(newPoint);
+                    this.drawSegment(prevPoint, newPoint, this.currentStroke);
+                    prevPoint = newPoint;
+                }
+            } else if (distance > 0.5) {
+                const newPoint = { x, y, pressure };
+                this.currentStroke.points.push(newPoint);
+                this.drawSegment(lastPoint, newPoint, this.currentStroke);
+            }
         }
 
         this.lastX = x;
@@ -277,16 +399,53 @@ export class HandwritingCanvas {
 
     handlePointerUp(e) {
         if (!this.isDrawing) return;
+        if (e.pointerId !== this.activePointerId) return;
+
         this.isDrawing = false;
+        this.activePointerId = null;
 
         if (this.currentStroke && this.currentStroke.points.length > 1) {
             this.strokes.push(this.currentStroke);
             this.undoStack.push({ type: 'stroke', index: this.strokes.length - 1 });
-            this.redoStack = [];
+            this.currentPage.redoStack = [];
+
+            if (this.onStrokeEnd) {
+                this.onStrokeEnd();
+            }
         }
 
         this.currentStroke = null;
-        this.canvas.releasePointerCapture(e.pointerId);
+
+        try {
+            this.canvas.releasePointerCapture(e.pointerId);
+        } catch (err) {
+        }
+    }
+
+    drawSegment(p1, p2, stroke) {
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+
+        if (stroke.tool === 'highlighter') {
+            this.ctx.globalCompositeOperation = 'multiply';
+            this.ctx.globalAlpha = 0.3;
+        } else {
+            this.ctx.globalCompositeOperation = 'source-over';
+            this.ctx.globalAlpha = 1;
+        }
+
+        const avgPressure = (p1.pressure + p2.pressure) / 2;
+        const width = stroke.width * (0.5 + avgPressure * 0.8);
+
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = stroke.color;
+        this.ctx.lineWidth = width;
+        this.ctx.moveTo(p1.x, p1.y);
+        this.ctx.lineTo(p2.x, p2.y);
+        this.ctx.stroke();
+
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.globalAlpha = 1;
     }
 
     drawStroke(stroke, isCurrentStroke = false) {
@@ -332,7 +491,7 @@ export class HandwritingCanvas {
         const eraserSize = this.options.eraserWidth;
         const eraserRect = { x: x - eraserSize / 2, y: y - eraserSize / 2, width: eraserSize, height: eraserSize };
 
-        this.strokes = this.strokes.filter(stroke => {
+        this.currentPage.strokes = this.strokes.filter(stroke => {
             return !stroke.points.some(p =>
                 p.x >= eraserRect.x && p.x <= eraserRect.x + eraserRect.width &&
                 p.y >= eraserRect.y && p.y <= eraserRect.y + eraserRect.height
@@ -383,7 +542,7 @@ export class HandwritingCanvas {
         const action = this.undoStack.pop();
         if (action.type === 'stroke') {
             const stroke = this.strokes.pop();
-            this.redoStack.push({ type: 'stroke', stroke });
+            this.currentPage.redoStack.push({ type: 'stroke', stroke });
         }
 
         this.redrawStrokes();
@@ -392,7 +551,7 @@ export class HandwritingCanvas {
     redo() {
         if (this.redoStack.length === 0) return;
 
-        const action = this.redoStack.pop();
+        const action = this.currentPage.redoStack.pop();
         if (action.type === 'stroke') {
             this.strokes.push(action.stroke);
             this.undoStack.push({ type: 'stroke', index: this.strokes.length - 1 });
@@ -403,15 +562,59 @@ export class HandwritingCanvas {
 
     clear() {
         this.undoStack.push({ type: 'clear', strokes: [...this.strokes] });
-        this.strokes = [];
-        this.redoStack = [];
+        this.currentPage.strokes = [];
+        this.currentPage.redoStack = [];
         this.redrawStrokes();
+    }
+
+    addPage() {
+        this.pages.push({ strokes: [], undoStack: [], redoStack: [] });
+        this.goToPage(this.pages.length - 1);
+    }
+
+    deletePage(index) {
+        if (this.pages.length <= 1) return;
+
+        this.pages.splice(index, 1);
+        if (this.currentPageIndex >= this.pages.length) {
+            this.currentPageIndex = this.pages.length - 1;
+        }
+        this.redrawStrokes();
+        this.notifyPageChange();
+    }
+
+    goToPage(index) {
+        if (index < 0 || index >= this.pages.length) return;
+        this.currentPageIndex = index;
+        this.redrawStrokes();
+        this.notifyPageChange();
+    }
+
+    nextPage() {
+        if (this.currentPageIndex < this.pages.length - 1) {
+            this.goToPage(this.currentPageIndex + 1);
+        } else {
+            this.addPage();
+        }
+    }
+
+    prevPage() {
+        if (this.currentPageIndex > 0) {
+            this.goToPage(this.currentPageIndex - 1);
+        }
+    }
+
+    notifyPageChange() {
+        if (this.onPageChange) {
+            this.onPageChange(this.currentPageIndex, this.pages.length);
+        }
     }
 
     getData() {
         return {
             template: this.options.template,
-            strokes: this.strokes,
+            pages: this.pages,
+            currentPageIndex: this.currentPageIndex,
             penColor: this.options.penColor,
             penWidth: this.options.penWidth
         };
@@ -425,10 +628,19 @@ export class HandwritingCanvas {
             this.applyTemplate();
         }
 
-        if (data.strokes) {
-            this.strokes = data.strokes;
-            this.redrawStrokes();
+        if (data.pages && Array.isArray(data.pages)) {
+            this.pages = data.pages;
+            this.currentPageIndex = data.currentPageIndex || 0;
+            if (this.currentPageIndex >= this.pages.length) {
+                this.currentPageIndex = 0;
+            }
+        } else if (data.strokes) {
+            this.pages = [{ strokes: data.strokes, undoStack: [], redoStack: [] }];
+            this.currentPageIndex = 0;
         }
+
+        this.redrawStrokes();
+        this.notifyPageChange();
 
         if (data.penColor) this.options.penColor = data.penColor;
         if (data.penWidth) this.options.penWidth = data.penWidth;
@@ -465,6 +677,9 @@ export class HandwritingToolbar {
 
         this.render();
         this.bindEvents();
+        this.updatePageIndicator();
+
+        this.canvas.onPageChange = () => this.updatePageIndicator();
     }
 
     render() {
@@ -497,7 +712,7 @@ export class HandwritingToolbar {
                 <button class="hw-color-btn" data-color="#f0e6d2" style="--color: #f0e6d2" title="Light"></button>
                 <button class="hw-color-btn" data-color="#4a6b5c" style="--color: #4a6b5c" title="Teal"></button>
                 <button class="hw-color-btn" data-color="#c4525a" style="--color: #c4525a" title="Rose"></button>
-                <button class="hw-color-btn" data-color="#8b7355" style="--color: #8b7355" title="Brown"></button>
+                <button class="hw-color-btn" data-color="#1a1714" style="--color: #1a1714" title="Black"></button>
             </div>
             <div class="hw-toolbar-sep"></div>
             <div class="hw-toolbar-group hw-sizes">
@@ -513,12 +728,32 @@ export class HandwritingToolbar {
             </div>
             <div class="hw-toolbar-sep"></div>
             <div class="hw-toolbar-group hw-templates">
-                <button class="hw-template-btn" data-template="blank" title="Blank">☐</button>
+                <button class="hw-template-btn active" data-template="blank" title="Blank">☐</button>
                 <button class="hw-template-btn" data-template="ruled" title="Ruled">≡</button>
                 <button class="hw-template-btn" data-template="square" title="Grid">▦</button>
                 <button class="hw-template-btn" data-template="dotGrid" title="Dots">⋮</button>
                 <button class="hw-template-btn" data-template="planner" title="Planner">📅</button>
                 <button class="hw-template-btn" data-template="cornell" title="Cornell">📝</button>
+            </div>
+            <div class="hw-toolbar-sep"></div>
+            <div class="hw-toolbar-group hw-pages">
+                <button class="hw-action-btn" data-action="prev-page" title="Previous Page">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <span class="hw-page-indicator" id="hw-page-indicator">1 / 1</span>
+                <button class="hw-action-btn" data-action="next-page" title="Next Page">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </button>
+                <button class="hw-action-btn" data-action="add-page" title="Add Page">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                </button>
             </div>
             <div class="hw-toolbar-grow"></div>
             <div class="hw-toolbar-group hw-actions">
@@ -534,7 +769,7 @@ export class HandwritingToolbar {
                         <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
                     </svg>
                 </button>
-                <button class="hw-action-btn hw-danger" data-action="clear" title="Clear All">
+                <button class="hw-action-btn hw-danger" data-action="clear" title="Clear Page">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path d="M3 6h18"/>
                         <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -548,10 +783,31 @@ export class HandwritingToolbar {
                         <line x1="12" y1="15" x2="12" y2="3"/>
                     </svg>
                 </button>
+                <button class="hw-action-btn hw-save" data-action="save" title="Save Note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                </button>
+                <button class="hw-action-btn hw-ai" data-action="ai-analyze" title="AI Analyze (OCR)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+                        <circle cx="7.5" cy="14.5" r="1.5"/>
+                        <circle cx="16.5" cy="14.5" r="1.5"/>
+                    </svg>
+                </button>
             </div>
         `;
 
         this.container.appendChild(this.element);
+    }
+
+    updatePageIndicator() {
+        const indicator = this.element.querySelector('#hw-page-indicator');
+        if (indicator) {
+            indicator.textContent = `${this.canvas.currentPageIndex + 1} / ${this.canvas.pages.length}`;
+        }
     }
 
     bindEvents() {
@@ -600,12 +856,31 @@ export class HandwritingToolbar {
                         this.canvas.redo();
                         break;
                     case 'clear':
-                        if (confirm('Clear all strokes?')) {
+                        if (confirm('Clear this page?')) {
                             this.canvas.clear();
                         }
                         break;
                     case 'export':
                         this.exportImage();
+                        break;
+                    case 'prev-page':
+                        this.canvas.prevPage();
+                        break;
+                    case 'next-page':
+                        this.canvas.nextPage();
+                        break;
+                    case 'add-page':
+                        this.canvas.addPage();
+                        break;
+                    case 'save':
+                        if (this.onSave) {
+                            this.onSave();
+                        }
+                        break;
+                    case 'ai-analyze':
+                        if (this.onAiAnalyze) {
+                            this.onAiAnalyze(this.canvas.exportAsImage());
+                        }
                         break;
                 }
             });
@@ -625,7 +900,7 @@ export class HandwritingToolbar {
     exportImage() {
         const dataUrl = this.canvas.exportAsImage();
         const link = document.createElement('a');
-        link.download = `kitab-note-${Date.now()}.png`;
+        link.download = `kitab-page-${this.canvas.currentPageIndex + 1}-${Date.now()}.png`;
         link.href = dataUrl;
         link.click();
     }

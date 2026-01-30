@@ -5,6 +5,7 @@ class Note {
         this.content = data.content || '';
         this.createdAt = data.createdAt || new Date().toISOString();
         this.updatedAt = data.updatedAt || new Date().toISOString();
+        this.handwritingData = data.handwritingData || null;
     }
 
     static generateId() {
@@ -46,7 +47,8 @@ class Note {
             title: this.title,
             content: this.content,
             createdAt: this.createdAt,
-            updatedAt: this.updatedAt
+            updatedAt: this.updatedAt,
+            handwritingData: this.handwritingData
         };
     }
 }

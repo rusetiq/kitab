@@ -15,7 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'landing.html'));
@@ -65,6 +65,55 @@ app.post('/api/chat', async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('API Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/vision', async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+            return res.status(500).json({ error: 'API key not configured on server' });
+        }
+
+        const { image, prompt } = req.body;
+
+        if (!image) {
+            return res.status(400).json({ error: 'Image is required' });
+        }
+
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+        const mimeType = image.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/png';
+
+        const contents = [{
+            parts: [
+                { text: prompt || 'Please analyze this handwritten note. Perform OCR to extract the text, and also describe what you see. Format the extracted text clearly.' },
+                {
+                    inline_data: {
+                        mime_type: mimeType,
+                        data: base64Data
+                    }
+                }
+            ]
+        }];
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        res.json(data);
+    } catch (error) {
         res.status(500).json({ error: 'Internal server error' });
     }
 });

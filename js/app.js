@@ -67,6 +67,57 @@ class KitabApp {
 
         this.handwritingCanvas = new HandwritingCanvas(canvasContainer);
         this.handwritingToolbar = new HandwritingToolbar(toolbarContainer, this.handwritingCanvas);
+
+        this.handwritingCanvas.onStrokeEnd = () => {
+            this.scheduleAutoSave();
+        };
+
+        this.handwritingToolbar.onSave = () => {
+            this.saveNote();
+        };
+
+        this.handwritingToolbar.onAiAnalyze = async (imageDataUrl) => {
+            await this.analyzeHandwriting(imageDataUrl);
+        };
+    }
+
+    async analyzeHandwriting(imageDataUrl) {
+        if (!imageDataUrl) {
+            this.toast('No drawing to analyze', 'error');
+            return;
+        }
+
+        this.fullscreenLoader.show('🔍 Analyzing Handwriting', 'Reading your notes with AI...');
+
+        try {
+            const response = await fetch('/api/vision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: imageDataUrl,
+                    prompt: 'Please analyze this handwritten note. Perform OCR to extract all the text you can read. Format the extracted text clearly with proper line breaks. If there are diagrams or drawings, describe them briefly.'
+                })
+            });
+
+            const data = await response.json();
+            this.fullscreenLoader.hide();
+
+            if (!response.ok) {
+                throw new Error(data.error?.message || 'Failed to analyze');
+            }
+
+            const result = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (result) {
+                this.aiPanel.open();
+                this.aiPanel.showResult(result);
+            } else {
+                this.toast('Could not extract text', 'error');
+            }
+        } catch (error) {
+            this.fullscreenLoader.hide();
+            this.toast(error.message || 'Failed to analyze handwriting', 'error');
+        }
     }
 
     setEditorMode(mode) {
