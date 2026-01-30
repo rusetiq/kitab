@@ -126,11 +126,22 @@ ${noteContent}`;
         return { title: 'Quiz', questions: [] };
     }
 
+    async write(topic) {
+        const prompt = `Write a detailed and structured note about: "${topic}". 
+        Use markdown formatting with headers, bullet points, and clear sections. 
+        The tone should be informative and professional. 
+        Return ONLY the note content.`;
+
+        const response = await this.chat(prompt);
+        return response.trim();
+    }
+
     getPrompt(action, content) {
         const prompts = {
             enhance: `Improve the following text. Fix grammar, enhance clarity, and make it more engaging while preserving the original meaning. Keep markdown formatting. Return only the enhanced text:\n\n${content}`,
             summarize: `Summarize the following text concisely. Capture key points using markdown bullet points. Return only the summary:\n\n${content}`,
-            expand: `Expand the following text with more detail and examples. Maintain the original style and use markdown formatting. Return only the expanded text:\n\n${content}`
+            expand: `Expand the following text with more detail and examples. Maintain the original style and use markdown formatting. Return only the expanded text:\n\n${content}`,
+            write: `Write a note about: ${content}`
         };
         return prompts[action] || content;
     }

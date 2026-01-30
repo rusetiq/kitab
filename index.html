@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Amiri:ital,wght@0,400;0,700;1,400&family=Sumana:wght@400;700&family=Sometype+Mono:wght@400;500;600&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
@@ -20,13 +20,10 @@
 </head>
 
 <body>
-    <div class="bg-base"></div>
+    <div class="texture-overlay"></div>
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
     <div class="bg-glow bg-glow-3"></div>
-    <div class="bg-grain"></div>
-    <div class="bg-mesh"></div>
-
     <header class="header glass-panel">
         <div class="header-left">
             <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
@@ -36,13 +33,10 @@
                     <line x1="4" y1="17" x2="12" y2="17" />
                 </svg>
             </button>
-            <div class="logo">
-                <svg class="logo-mark" viewBox="0 0 32 32" fill="none">
-                    <path d="M8 28L11 8H15L18 22L21 8H25L28 28" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round" />
-                    <circle cx="18" cy="5" r="2.5" fill="currentColor" />
-                </svg>
-                <span class="logo-word">Kitab</span>
+            <div class="brand">
+                <span class="brand-mark">کتاب</span>
+                <span class="brand-text">Kitab</span>
+                <span class="brand-subtitle">किताब</span>
             </div>
         </div>
 
@@ -148,6 +142,8 @@
                     </div>
                     <div class="toolbar-sep"></div>
                     <div class="toolbar-group">
+                        <button class="toolbar-btn toolbar-accent" id="btn-ai-write"
+                            title="Write with AI">Write</button>
                         <button class="toolbar-btn toolbar-accent" id="btn-ai-enhance" title="Enhance">Enhance</button>
                         <button class="toolbar-btn toolbar-accent" id="btn-ai-summarize"
                             title="Summarize">Summarize</button>
@@ -183,6 +179,20 @@
                     </div>
                 </div>
             </div>
+
+            <div class="editor-empty-state glass-panel hidden" id="editor-empty-state">
+                <div class="empty-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    <h2>Select or Create a Note</h2>
+                    <p>Choose a note from the sidebar or start a new one.</p>
+                    <button class="btn btn-accent" id="btn-empty-create">Create New Note</button>
+                </div>
+            </div>
         </section>
     </main>
 
@@ -192,6 +202,59 @@
                 d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
     </button>
+
+    <!-- Context Menu -->
+    <div class="context-menu glass-panel hidden" id="context-menu">
+        <div class="context-item" id="ctx-cut">
+            <span>Cut</span>
+            <kbd>Ctrl+X</kbd>
+        </div>
+        <div class="context-item" id="ctx-copy">
+            <span>Copy</span>
+            <kbd>Ctrl+C</kbd>
+        </div>
+        <div class="context-item" id="ctx-paste">
+            <span>Paste</span>
+            <kbd>Ctrl+V</kbd>
+        </div>
+        <div class="context-sep"></div>
+        <div class="context-item" id="ctx-undo">
+            <span>Undo</span>
+            <kbd>Ctrl+Z</kbd>
+        </div>
+        <div class="context-item" id="ctx-redo">
+            <span>Redo</span>
+            <kbd>Ctrl+Y</kbd>
+        </div>
+        <div class="context-sep"></div>
+        <div class="context-item" id="ctx-ai-write-ctx">
+            <span>Write with AI...</span>
+        </div>
+    </div>
+
+    <!-- AI Write Modal -->
+    <div class="modal-overlay" id="ai-write-modal">
+        <div class="modal glass-panel">
+            <div class="modal-header">
+                <h3>Write with AI</h3>
+                <button class="icon-btn-sm" id="ai-write-close">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <line x1="12" y1="4" x2="4" y2="12" />
+                        <line x1="4" y1="4" x2="12" y2="12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 0.5rem; color: var(--text-muted);">What should the note be about?</p>
+                <textarea class="modal-input" id="ai-write-input" rows="4"
+                    placeholder="e.g. The history of calligraphy in the Islamic Golden Age..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="ai-write-cancel">Cancel</button>
+                <button class="btn btn-accent" id="ai-write-confirm">Generate</button>
+            </div>
+        </div>
+    </div>
 
     <div class="chat-drawer glass-panel" id="chat-panel">
         <div class="chat-header">

@@ -58,18 +58,34 @@ class KitabApp {
             sidebar: document.getElementById('sidebar'),
             sidebarToggle: document.getElementById('sidebar-toggle'),
             editorSection: document.getElementById('editor-section'),
+            editorEmptyState: document.getElementById('editor-empty-state'), // New
             fabChat: document.getElementById('fab-chat'),
+
             btnNewNote: document.getElementById('btn-new-note'),
+            btnEmptyCreate: document.getElementById('btn-empty-create'), // New
             btnTheme: document.getElementById('btn-theme'),
             btnHelp: document.getElementById('btn-help'),
             btnSave: document.getElementById('btn-save'),
             btnDelete: document.getElementById('btn-delete'),
+
+            btnAiWrite: document.getElementById('btn-ai-write'), // New
             btnAiEnhance: document.getElementById('btn-ai-enhance'),
             btnAiSummarize: document.getElementById('btn-ai-summarize'),
             btnAiExpand: document.getElementById('btn-ai-expand'),
+
             btnMindmap: document.getElementById('btn-mindmap'),
             btnQuiz: document.getElementById('btn-quiz'),
-            fileInput: document.getElementById('file-input')
+            fileInput: document.getElementById('file-input'),
+
+            // Context Menu
+            contextMenu: document.getElementById('context-menu'),
+
+            // AI Write Modal
+            modalAiWrite: document.getElementById('ai-write-modal'),
+            inputAiWrite: document.getElementById('ai-write-input'),
+            btnAiWriteConfirm: document.getElementById('ai-write-confirm'),
+            btnAiWriteCancel: document.getElementById('ai-write-cancel'),
+            btnAiWriteClose: document.getElementById('ai-write-close')
         };
     }
 
@@ -213,7 +229,7 @@ class KitabApp {
                 note.content = text.substring(0, 50000);
                 this.saveNotes();
                 this.renderNotesList();
-                this.editor.load(note);
+                this.selectNote(note.id); // Also handles editor state
                 this.toast('Document imported!', 'success');
             }
         };
@@ -221,10 +237,12 @@ class KitabApp {
 
     bindEvents() {
         this.el.btnNewNote?.addEventListener('click', () => this.createNote());
+        this.el.btnEmptyCreate?.addEventListener('click', () => this.createNote());
         this.el.btnTheme?.addEventListener('click', () => this.theme.toggle());
         this.el.btnSave?.addEventListener('click', () => this.saveNote());
         this.el.btnDelete?.addEventListener('click', () => this.confirmDelete());
 
+        this.el.btnAiWrite?.addEventListener('click', () => this.openAiWriteModal());
         this.el.btnAiEnhance?.addEventListener('click', () => this.runAI('enhance'));
         this.el.btnAiSummarize?.addEventListener('click', () => this.runAI('summarize'));
         this.el.btnAiExpand?.addEventListener('click', () => this.runAI('expand'));
@@ -239,12 +257,116 @@ class KitabApp {
 
         document.getElementById('note-title')?.addEventListener('input', () => this.scheduleAutoSave());
 
+        // Context Menu Events
+        document.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
+        document.addEventListener('click', () => this.hideContextMenu());
+
+        // Context Menu Actions
+        document.getElementById('ctx-cut')?.addEventListener('click', () => { document.execCommand('cut'); this.hideContextMenu(); });
+        document.getElementById('ctx-copy')?.addEventListener('click', () => { document.execCommand('copy'); this.hideContextMenu(); });
+        document.getElementById('ctx-paste')?.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                this.editor.insertMarkdown(text, ''); // Insert at cursor
+            } catch {
+                document.execCommand('paste');
+            }
+            this.hideContextMenu();
+        });
+        document.getElementById('ctx-undo')?.addEventListener('click', () => { document.execCommand('undo'); this.hideContextMenu(); });
+        document.getElementById('ctx-redo')?.addEventListener('click', () => { document.execCommand('redo'); this.hideContextMenu(); });
+        document.getElementById('ctx-ai-write-ctx')?.addEventListener('click', () => { this.hideContextMenu(); this.openAiWriteModal(); });
+
+        // AI Write Modal Events
+        this.el.btnAiWriteClose?.addEventListener('click', () => this.closeAiWriteModal());
+        this.el.btnAiWriteCancel?.addEventListener('click', () => this.closeAiWriteModal());
+        this.el.btnAiWriteConfirm?.addEventListener('click', () => this.runAiWrite());
+
+        // Shortcuts
         document.addEventListener('keydown', (e) => {
+            // Save: Ctrl+S
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
                 this.saveNote();
             }
+            // New Note: Ctrl+Alt+N
+            if (e.ctrlKey && e.altKey && e.key === 'n') {
+                e.preventDefault();
+                this.createNote();
+            }
+            // Undo: Ctrl+Z
+            if (e.ctrlKey && e.key === 'z') {
+                // Browser default usually handles this in textarea, but let's ensure
+                // If we are NOT in a textarea, we might not want to act, but typical app behavior is global.
+                // However, execCommand 'undo' only works on focused contenteditable/input.
+                // So default behavior is fine for textarea.
+            }
         });
+    }
+
+    handleContextMenu(e) {
+        e.preventDefault();
+        if (this.el.contextMenu) {
+            this.el.contextMenu.style.left = `${e.clientX}px`;
+            this.el.contextMenu.style.top = `${e.clientY}px`;
+            this.el.contextMenu.classList.remove('hidden');
+        }
+    }
+
+    hideContextMenu() {
+        this.el.contextMenu?.classList.add('hidden');
+    }
+
+    openAiWriteModal() {
+        if (!this.notes.currentId) {
+            this.toast('Create or select a note first', 'error');
+            return;
+        }
+        if (this.el.modalAiWrite) {
+            this.el.modalAiWrite.classList.add('visible');
+            setTimeout(() => this.el.inputAiWrite?.focus(), 100);
+        }
+    }
+
+    closeAiWriteModal() {
+        if (this.el.modalAiWrite) {
+            this.el.modalAiWrite.classList.remove('visible');
+            if (this.el.inputAiWrite) this.el.inputAiWrite.value = '';
+        }
+    }
+
+    async runAiWrite() {
+        const topic = this.el.inputAiWrite?.value.trim();
+        if (!topic) {
+            this.toast('Please enter a topic', 'error');
+            return;
+        }
+
+        this.closeAiWriteModal();
+        this.fullscreenLoader.show('✍️ Writing Note', 'Consulting the archives...');
+
+        try {
+            const content = await this.ai.write(topic);
+            this.updateRateLimitsUI();
+            this.fullscreenLoader.hide();
+
+            // Append or replace? "Write a note" implies creating content. 
+            // If empty, simple set. If exists, maybe append. 
+            // Let's replace for now or append if not empty? 
+            // User said: "just give it the topic and it'll write it for you".
+            // Safest -> Set content. Or append with separator.
+
+            const currentContent = this.editor.content;
+            const separator = currentContent ? '\n\n---\n\n' : '';
+            const newContent = currentContent + separator + content;
+
+            this.editor.load({ ...this.notes.current, content: newContent });
+            this.saveNote();
+            this.toast('Note generated!', 'success');
+        } catch (error) {
+            this.fullscreenLoader.hide();
+            this.toast(error.message || 'Failed to write note', 'error');
+        }
     }
 
     loadChatHistory() {
@@ -261,7 +383,7 @@ class KitabApp {
         const note = this.notes.create();
         this.saveNotes();
         this.renderNotesList();
-        this.editor.load(note);
+        this.selectNote(note.id); // Use selectNote to handle UI state
         this.chat.clear();
         document.getElementById('note-title')?.focus();
         this.toast('Note created');
@@ -272,11 +394,27 @@ class KitabApp {
         if (note) {
             this.editor.load(note);
             this.chat.setNoteContent(this.editor.content);
-            this.renderNotesList();
         }
+        // If not found? Should handle.
+        this.renderNotesList(); // This updates the list active state
+        this.updateEditorState();
+    }
+
+    updateEditorState() {
+        const hasNote = !!this.notes.currentId;
+
+        // Show/Hide Empty State Overlay
+        if (this.el.editorEmptyState) {
+            this.el.editorEmptyState.classList.toggle('hidden', hasNote);
+        }
+
+        // Disable/Enable toolbar? 
+        // The overlay covers it, so clicking buttons shouldn't be possible if z-index is correct.
+        // But the sidebar is outside.
     }
 
     saveNote(silent = false) {
+        if (!this.notes.currentId) return; // Guard against saving when no note
         this.notes.updateCurrent(this.editor.title, this.editor.content);
         this.saveNotes();
         this.renderNotesList();
@@ -300,17 +438,17 @@ class KitabApp {
                 this.saveNotes();
                 this.renderNotesList();
 
-                if (this.notes.current) {
-                    this.editor.load(this.notes.current);
-                } else {
-                    this.editor.clear();
-                }
+                // Reset editor state
+                this.editor.clear();
+                this.updateEditorState();
 
                 this.modal.close();
                 this.toast('Deleted', 'success');
             }
         );
     }
+
+    // ... keeping existing methods runAI, generateMindMap, generateQuiz, scheduleAutoSave, saveNotes ...
 
     async runAI(action) {
         const content = this.editor.content.trim();
@@ -391,6 +529,9 @@ class KitabApp {
     renderNotesList() {
         const filtered = this.notes.search(this.searchQuery);
         if (this.el.notesCount) this.el.notesCount.textContent = this.notes.count;
+
+        // Ensure editor state is correct on init
+        this.updateEditorState();
 
         if (filtered.length === 0) {
             if (this.el.emptyState) this.el.emptyState.style.display = 'flex';

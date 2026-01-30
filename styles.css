@@ -1,67 +1,188 @@
 :root {
-    --void: #08070a;
-    --ink: #0e0d12;
-    --parchment: #1a1820;
-    --vellum: #252330;
+    /* Manuscript Palette from Landing Page */
+    --void: #080706;
+    /* --ink-deep */
+    --ink: #12100e;
+    /* --ink-warm */
+    --parchment: #1a1714;
+    /* --ink-medium */
+    --vellum: #2a2520;
+    /* --ink-light */
     --mist: #3a3848;
+    /* Keep mist or adjust if needed */
 
-    --text-bright: #f4f0e8;
-    --text-main: #c9c4b8;
-    --text-muted: #8a857a;
-    --text-faint: #5a564e;
+    --text-bright: #f0e6d2;
+    /* --landing-parchment */
+    --text-main: #c9bc9e;
+    /* --landing-parchment-dim */
+    --text-muted: #8a7f70;
+    --text-faint: #5a5248;
 
-    --amber: #d4a052;
-    --amber-dim: #b8883a;
-    --amber-glow: rgba(212, 160, 82, 0.15);
-    --amber-bright: #f0c878;
+    --amber: #e6b84a;
+    /* --gold-bright */
+    --amber-dim: #b8963f;
+    /* --gold-dim */
+    --amber-glow: rgba(230, 184, 74, 0.15);
+    --amber-bright: #ffcf60;
 
-    --copper: #c47a52;
-    --teal: #4a9a8a;
-    --rose: #c4707a;
+    --copper: #4a6b5c;
+    /* --copper (greenish in landing) */
+    --copper-glow: rgba(74, 107, 92, 0.3);
+
+    --teal: #4a6b5c;
+    /* Mapping teal to copper for consistency */
+    --rose: #c4525a;
     --sage: #7a9a6a;
 
-    --glass-bg: rgba(26, 24, 32, 0.65);
-    --glass-border: rgba(244, 240, 232, 0.06);
-    --glass-highlight: rgba(244, 240, 232, 0.03);
-    --glass-shadow: rgba(0, 0, 0, 0.4);
+    --glass-bg: rgba(18, 16, 14, 0.7);
+    --glass-border: rgba(230, 184, 74, 0.15);
+    --glass-highlight: rgba(240, 230, 210, 0.05);
+    --glass-shadow: rgba(0, 0, 0, 0.6);
 
-    --font-display: 'Cormorant Garamond', Georgia, serif;
-    --font-body: 'Crimson Pro', Georgia, serif;
-    --font-ui: 'DM Sans', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'Consolas', monospace;
+    /* Typography from Landing */
+    --font-display: 'Amiri', 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'Cormorant Garamond', Georgia, serif;
+    --font-ui: 'Sometype Mono', system-ui, sans-serif;
+    --font-mono: 'Sometype Mono', 'Fira Code', monospace;
+    --font-hindi: 'Sumana', serif;
 
-    --blur-glass: 24px;
-    --blur-heavy: 40px;
+    --blur-glass: 12px;
+    --blur-heavy: 20px;
 
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    --header-h: 56px;
+    --header-h: 64px;
     --sidebar-w: 280px;
     --chat-w: 360px;
 }
 
-[data-theme="light"] {
-    --void: #f8f6f2;
-    --ink: #f0ede6;
-    --parchment: #e8e4dc;
-    --vellum: #dcd8d0;
-    --mist: #c8c4bc;
+/* Manuscript Theme Elements */
+.texture-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: -6;
+    opacity: 0.03;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
 
-    --text-bright: #1a1818;
-    --text-main: #3a3836;
-    --text-muted: #6a6660;
-    --text-faint: #9a968e;
+.frame-border {
+    position: fixed;
+    inset: 1rem;
+    border: 1px solid var(--glass-border);
+    pointer-events: none;
+    z-index: 900;
+}
 
-    --amber: #a87830;
-    --amber-dim: #8a6028;
-    --amber-glow: rgba(168, 120, 48, 0.12);
-    --amber-bright: #c89040;
+.frame-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            var(--amber) 20%,
+            transparent 40%,
+            transparent 60%,
+            var(--copper) 80%,
+            transparent 100%);
+    background-size: 200% 100%;
+    animation: border-shimmer 15s linear infinite;
+    opacity: 0.3;
+}
 
-    --glass-bg: rgba(248, 246, 242, 0.75);
-    --glass-border: rgba(26, 24, 24, 0.08);
-    --glass-highlight: rgba(255, 255, 255, 0.5);
-    --glass-shadow: rgba(0, 0, 0, 0.08);
+.corner {
+    position: fixed;
+    width: 60px;
+    height: 60px;
+    z-index: 901;
+    opacity: 0.4;
+    border-color: var(--amber-dim);
+}
+
+.corner-tl {
+    top: 2rem;
+    left: 2rem;
+    border-top: 1px solid;
+    border-left: 1px solid;
+}
+
+.corner-tr {
+    top: 2rem;
+    right: 2rem;
+    border-top: 1px solid;
+    border-right: 1px solid;
+}
+
+.corner-bl {
+    bottom: 2rem;
+    left: 2rem;
+    border-bottom: 1px solid;
+    border-left: 1px solid;
+}
+
+.corner-br {
+    bottom: 2rem;
+    right: 2rem;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+}
+
+@keyframes border-shimmer {
+    0% {
+        background-position: -200% center;
+    }
+
+    100% {
+        background-position: 200% center;
+    }
+}
+
+/* Brand Styles */
+.brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--text-bright);
+}
+
+.brand-mark {
+    font-family: 'Amiri', serif;
+    font-size: 1.8rem;
+    color: var(--amber);
+    line-height: 1;
+}
+
+.brand-text {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.brand-subtitle {
+    font-family: var(--font-hindi);
+    font-size: 0.9rem;
+    color: var(--text-main);
+    opacity: 0.8;
+}
+
+/* Override Header for Manuscript Look */
+.header {
+    background: linear-gradient(to bottom, var(--void) 0%, rgba(8, 7, 6, 0.8) 100%);
+    border-bottom: none;
+    backdrop-filter: blur(4px);
+}
+
+.header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber-glow), transparent);
 }
 
 *,
@@ -1892,4 +2013,203 @@ body {
         width: 48px;
         height: 48px;
     }
+}
+
+/* Manuscript Theme Specific Overrides */
+
+/* Header Override */
+.header.glass-panel {
+    background: linear-gradient(to bottom, var(--void) 0%, rgba(8, 7, 6, 0.8) 100%);
+    border: none;
+    box-shadow: none;
+    backdrop-filter: blur(4px);
+}
+
+.header.glass-panel::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--amber-glow), transparent);
+}
+
+/* Button Styling Update */
+.btn {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+.btn-accent {
+    background: var(--amber);
+    color: var(--void);
+    border: 1px solid var(--amber);
+    box-shadow: none;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-accent:hover {
+    background: var(--amber-bright);
+    color: var(--void);
+    box-shadow: 0 0 15px var(--amber-glow);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+}
+
+.btn-ghost:hover {
+    border-color: var(--amber-dim);
+    color: var(--text-bright);
+    background: rgba(230, 184, 74, 0.05);
+}
+
+/* Sidebar & Glass Panel Tweaks */
+.glass-panel {
+    border-color: var(--glass-border);
+    background: var(--glass-bg);
+}
+
+.sidebar {
+    border-right: 1px solid var(--glass-border);
+}
+
+.sidebar-toggle:hover,
+.icon-btn:hover {
+    color: var(--amber);
+    background: var(--amber-glow);
+}
+
+.logo-word,
+.brand-text {
+    font-family: 'Amiri', serif;
+    /* Ensure title uses the serif font */
+}
+
+/* Editor Typography */
+.note-title-input {
+    font-family: 'Amiri', serif;
+    font-weight: 700;
+}
+
+/* Editor Empty State */
+.editor-empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    background: rgba(8, 7, 6, 0.85);
+    /* Slightly darker to cover editor */
+    backdrop-filter: blur(8px);
+}
+
+.empty-content {
+    text-align: center;
+    max-width: 400px;
+}
+
+.empty-content svg {
+    width: 64px;
+    height: 64px;
+    color: var(--amber-dim);
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+}
+
+.empty-content h2 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--text-bright);
+    margin-bottom: 0.75rem;
+}
+
+.empty-content p {
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    width: 200px;
+    z-index: 2000;
+    padding: 0.5rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.context-menu.hidden {
+    display: none;
+    pointer-events: none;
+}
+
+.context-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    transition: all 0.15s ease;
+}
+
+.context-item:hover {
+    background: var(--amber-glow);
+    color: var(--text-bright);
+}
+
+.context-item kbd {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--text-faint);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.context-sep {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 0.25rem 0;
+}
+
+/* Modal Inputs */
+.modal-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    color: var(--text-bright);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.modal-input:focus {
+    border-color: var(--amber);
+}
+
+/* Editor Section Relative Positioning for Empty State Overlay */
+.editor-section {
+    position: relative;
 }
