@@ -3,6 +3,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -73,8 +74,23 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', apiConfigured: hasKey });
 });
 
-app.listen(PORT, () => {
-    console.log(`Kitab server running at http://localhost:${PORT}`);
-    console.log(`Landing page: http://localhost:${PORT}/`);
-    console.log(`App: http://localhost:${PORT}/app`);
+
+function getLocalIP() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+    const localIP = getLocalIP();
+    console.log(`\n🕌 Kitab server running!\n`);
+    console.log(`   Local:   http://localhost:${PORT}/app`);
+    console.log(`   Network: http://${localIP}:${PORT}/app`);
+    console.log(`\n   Use the Network URL on your iPad!\n`);
 });

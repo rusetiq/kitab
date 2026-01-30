@@ -15,6 +15,7 @@ import {
     HelpModal,
     FileUploader
 } from './ui.js';
+import { HandwritingCanvas, HandwritingToolbar } from './handwriting.js';
 
 class KitabApp {
     constructor() {
@@ -24,6 +25,9 @@ class KitabApp {
         this.theme = new ThemeManager();
         this.autoSaveTimeout = null;
         this.searchQuery = '';
+        this.editorMode = 'text';
+        this.handwritingCanvas = null;
+        this.handwritingToolbar = null;
 
         this.init();
     }
@@ -42,9 +46,90 @@ class KitabApp {
         if (this.notes.current) {
             this.editor.load(this.notes.current);
             this.chat.setNoteContent(this.editor.content);
+            this.loadHandwritingData();
         }
 
         setInterval(() => this.updateRateLimitsUI(), 5000);
+    }
+
+    initHandwriting() {
+        const canvasContainer = document.getElementById('handwriting-canvas-container');
+        const toolbarContainer = document.getElementById('handwriting-toolbar-container');
+
+        if (!canvasContainer || !toolbarContainer) return;
+
+        if (this.handwritingCanvas) {
+            this.handwritingCanvas.destroy();
+        }
+        if (this.handwritingToolbar) {
+            this.handwritingToolbar.destroy();
+        }
+
+        this.handwritingCanvas = new HandwritingCanvas(canvasContainer);
+        this.handwritingToolbar = new HandwritingToolbar(toolbarContainer, this.handwritingCanvas);
+    }
+
+    setEditorMode(mode) {
+        this.editorMode = mode;
+        const editorWrite = document.getElementById('editor-write');
+        const editorPreview = document.getElementById('editor-preview');
+        const handwritingContainer = document.getElementById('handwriting-container');
+        const btnModeText = document.getElementById('btn-mode-text');
+        const btnModeDraw = document.getElementById('btn-mode-draw');
+        const textModeViews = document.getElementById('text-mode-views');
+        const textModeSep = document.getElementById('text-mode-sep');
+        const textModeSep2 = document.getElementById('text-mode-sep-2');
+        const textToolbar = document.querySelectorAll('.editor-toolbar .toolbar-group:not(.editor-mode-toggle)');
+
+        btnModeText?.classList.toggle('active', mode === 'text');
+        btnModeDraw?.classList.toggle('active', mode === 'draw');
+
+        if (mode === 'draw') {
+            editorWrite?.classList.add('hidden-for-draw');
+            editorPreview?.classList.add('hidden');
+            handwritingContainer?.classList.add('active');
+            textModeViews?.style.setProperty('display', 'none');
+            textModeSep?.style.setProperty('display', 'none');
+            textModeSep2?.style.setProperty('display', 'none');
+            textToolbar.forEach(el => {
+                if (!el.classList.contains('editor-mode-toggle')) {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (!this.handwritingCanvas) {
+                this.initHandwriting();
+            }
+            this.loadHandwritingData();
+        } else {
+            editorWrite?.classList.remove('hidden-for-draw');
+            handwritingContainer?.classList.remove('active');
+            textModeViews?.style.setProperty('display', 'flex');
+            textModeSep?.style.setProperty('display', 'block');
+            textModeSep2?.style.setProperty('display', 'block');
+            textToolbar.forEach(el => {
+                el.style.display = 'flex';
+            });
+
+            this.saveHandwritingData();
+        }
+    }
+
+    loadHandwritingData() {
+        if (!this.notes.current || !this.handwritingCanvas) return;
+        const data = this.notes.current.handwritingData;
+        if (data) {
+            this.handwritingCanvas.loadData(data);
+        }
+    }
+
+    saveHandwritingData() {
+        if (!this.notes.current || !this.handwritingCanvas) return;
+        const data = this.handwritingCanvas.getData();
+        if (this.notes.current) {
+            this.notes.current.handwritingData = data;
+            this.saveNotes();
+        }
     }
 
     bindElements() {
@@ -85,7 +170,11 @@ class KitabApp {
             inputAiWrite: document.getElementById('ai-write-input'),
             btnAiWriteConfirm: document.getElementById('ai-write-confirm'),
             btnAiWriteCancel: document.getElementById('ai-write-cancel'),
-            btnAiWriteClose: document.getElementById('ai-write-close')
+            btnAiWriteClose: document.getElementById('ai-write-close'),
+
+            btnModeText: document.getElementById('btn-mode-text'),
+            btnModeDraw: document.getElementById('btn-mode-draw'),
+            handwritingContainer: document.getElementById('handwriting-container')
         };
     }
 
@@ -255,6 +344,9 @@ class KitabApp {
             this.renderNotesList();
         });
 
+        this.el.btnModeText?.addEventListener('click', () => this.setEditorMode('text'));
+        this.el.btnModeDraw?.addEventListener('click', () => this.setEditorMode('draw'));
+
         document.getElementById('note-title')?.addEventListener('input', () => this.scheduleAutoSave());
 
         // Context Menu Events
@@ -394,9 +486,11 @@ class KitabApp {
         if (note) {
             this.editor.load(note);
             this.chat.setNoteContent(this.editor.content);
+            if (this.handwritingCanvas) {
+                this.loadHandwritingData();
+            }
         }
-        // If not found? Should handle.
-        this.renderNotesList(); // This updates the list active state
+        this.renderNotesList();
         this.updateEditorState();
     }
 
@@ -414,8 +508,9 @@ class KitabApp {
     }
 
     saveNote(silent = false) {
-        if (!this.notes.currentId) return; // Guard against saving when no note
+        if (!this.notes.currentId) return;
         this.notes.updateCurrent(this.editor.title, this.editor.content);
+        this.saveHandwritingData();
         this.saveNotes();
         this.renderNotesList();
         this.editor.updateDate(this.notes.current?.updatedAt);
