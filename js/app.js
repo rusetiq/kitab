@@ -7,7 +7,6 @@ import {
     FullscreenLoader,
     SidebarController,
     ModalController,
-    ApiKeyModal,
     ChatController,
     MindMapController,
     QuizController,
@@ -112,15 +111,6 @@ class KitabApp {
             }
         );
 
-        this.apiKeyModal = new ApiKeyModal(
-            document.getElementById('api-key-modal'),
-            {
-                input: document.getElementById('gemini-key-input'),
-                save: document.getElementById('btn-save-api-key'),
-                cancel: document.getElementById('btn-cancel-api-key')
-            }
-        );
-
         this.aiPanel = new AIPanelController(
             document.getElementById('ai-panel'),
             {
@@ -174,12 +164,6 @@ class KitabApp {
         );
 
         this.fileUploader = new FileUploader(this.el.fileInput);
-
-        this.ai.onApiKeyNeeded = async () => {
-            const key = await this.apiKeyModal.prompt();
-            if (key) this.ai.setApiKey(key);
-            return key;
-        };
 
         this.aiPanel.onApply = (result) => {
             const contentEl = document.getElementById('note-content');

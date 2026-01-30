@@ -2,9 +2,7 @@ import CONFIG from './config.js';
 
 class AIService {
     constructor(rateLimiter) {
-        this.geminiApiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.GEMINI_KEY);
         this.rateLimiter = rateLimiter;
-        this.onApiKeyNeeded = null;
     }
 
     async chat(prompt) {
@@ -13,29 +11,18 @@ class AIService {
             throw new Error(check.reason);
         }
 
-        if (!this.geminiApiKey) {
-            if (this.onApiKeyNeeded) {
-                this.geminiApiKey = await this.onApiKeyNeeded();
-            }
-            if (!this.geminiApiKey) {
-                throw new Error('API key required');
-            }
-        }
-
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.GEMINI_MODEL}:generateContent?key=${this.geminiApiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
-            }
-        );
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                model: CONFIG.GEMINI_MODEL
+            })
+        });
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error?.message || 'API request failed');
+            throw new Error(error.error?.message || error.error || 'API request failed');
         }
 
         this.rateLimiter.recordRequest();
@@ -53,15 +40,6 @@ class AIService {
             throw new Error(check.reason);
         }
 
-        if (!this.geminiApiKey) {
-            if (this.onApiKeyNeeded) {
-                this.geminiApiKey = await this.onApiKeyNeeded();
-            }
-            if (!this.geminiApiKey) {
-                throw new Error('API key required');
-            }
-        }
-
         const contents = [
             {
                 role: 'user',
@@ -77,18 +55,15 @@ class AIService {
             }))
         ];
 
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.GEMINI_MODEL}:generateContent?key=${this.geminiApiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents })
-            }
-        );
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents, model: CONFIG.GEMINI_MODEL })
+        });
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error?.message || 'API request failed');
+            throw new Error(error.error?.message || error.error || 'API request failed');
         }
 
         this.rateLimiter.recordRequest();
@@ -149,11 +124,6 @@ ${noteContent}`;
             }
         } catch { }
         return { title: 'Quiz', questions: [] };
-    }
-
-    setApiKey(key) {
-        this.geminiApiKey = key;
-        localStorage.setItem(CONFIG.STORAGE_KEYS.GEMINI_KEY, key);
     }
 
     getPrompt(action, content) {
