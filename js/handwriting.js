@@ -567,6 +567,13 @@ export class HandwritingCanvas {
         this.redrawStrokes();
     }
 
+    clearAll() {
+        this.pages = [{ strokes: [], undoStack: [], redoStack: [] }];
+        this.currentPageIndex = 0;
+        this.redrawStrokes();
+        this.notifyPageChange();
+    }
+
     addPage() {
         this.pages.push({ strokes: [], undoStack: [], redoStack: [] });
         this.goToPage(this.pages.length - 1);

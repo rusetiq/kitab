@@ -167,10 +167,12 @@ class KitabApp {
     }
 
     loadHandwritingData() {
-        if (!this.notes.current || !this.handwritingCanvas) return;
-        const data = this.notes.current.handwritingData;
-        if (data) {
-            this.handwritingCanvas.loadData(data);
+        if (!this.handwritingCanvas) return;
+
+        this.handwritingCanvas.clearAll();
+
+        if (this.notes.current && this.notes.current.handwritingData) {
+            this.handwritingCanvas.loadData(this.notes.current.handwritingData);
         }
     }
 
@@ -533,13 +535,15 @@ class KitabApp {
     }
 
     selectNote(id) {
+        if (this.handwritingCanvas && this.notes.current) {
+            this.saveHandwritingData();
+        }
+
         const note = this.notes.select(id);
         if (note) {
             this.editor.load(note);
             this.chat.setNoteContent(this.editor.content);
-            if (this.handwritingCanvas) {
-                this.loadHandwritingData();
-            }
+            this.loadHandwritingData();
         }
         this.renderNotesList();
         this.updateEditorState();
